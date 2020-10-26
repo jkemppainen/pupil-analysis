@@ -31,6 +31,7 @@ class OAnalyser(MAnalyser):
         print("Orientation saved in file {}".format(self.orientation_savefn))
 
         super().__init__(*args, **kwargs)
+    
 
 
     def measure_movement(self, eye):
@@ -41,7 +42,7 @@ class OAnalyser(MAnalyser):
         In the end calls self.load_analysed_movements in order to
         match the MAnalyser behaviour.
         '''
-
+        
         self.movements = {}
 
         images = []
@@ -49,27 +50,31 @@ class OAnalyser(MAnalyser):
             
         for angle in self.stacks:
             
-            roi = self.ROIs[eye].get(angle, None)
+            roi = self.ROIs[eye].get(angle, None)            
             
-            if roi:
+            if roi is not None:
                 images.append(self.stacks[angle][0][0])
-                rois.append(roi)
+
+                widen = 10
+                rois.append([roi[0]-widen, roi[1]-widen, roi[2]+2*widen, roi[3]+2*widen])
 
 
         fig, ax = plt.subplots()
-        marker = Marker(fig, ax, images[1:10], self.orientation_savefn.format(eye),
+        marker = Marker(fig, ax, images, self.orientation_savefn.format(eye),
+                crops=rois,
                 relative_fns_from=os.path.join(self.data_path, self.folder),
                 selection_type='arrow',
                 callback_on_exit=print)
 
         marker.run()
 
-        print('Marker should run now')
+
 
     def load_analysed_movements(self):
         '''
+        Loads the analysed rhabdomere orientations, drawn with roimarker's
+        arrow selection type.
         '''
-
 
         self.movements = {}
 
@@ -82,20 +87,27 @@ class OAnalyser(MAnalyser):
             
             for angle in self.stacks:
                 
-                roi = marker_data.get( self.stacks[angle][0][0] )
+                relfn = os.path.relpath(self.stacks[angle][0][0], start=os.path.join(self.data_path, self.folder))
+                roi = marker_data.get(relfn, None )
+                
+                if roi == None:
+                    continue
                 
                 try:
-                    self.movements[angle]
+                    self.movements[eye][angle]
                 except KeyError:
-                    self.movements[angle] = []
+                    self.movements[eye][angle] = []
                 
-                x = roi[2] - roi[0]
-                y = roi[3] - roi[1]
+                # Should be only one arrow per eye
+                roi = roi[0]
+
+                x = [roi[2], roi[0]]
+                y = [roi[3], roi[1]]
 
                 self.movements[eye][angle].append({'x': x, 'y': y})
 
     
     def is_measured(self):
-        return os.path.exists(self.orientation_savefn) 
+        return all([os.path.exists(self.orientation_savefn.format(eye)) for eye in ['left', 'right']])
 
 
